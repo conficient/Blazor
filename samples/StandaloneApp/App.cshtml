@@ -4,4 +4,8 @@
 -->
 <Router
     AppAssembly=typeof(StandaloneApp.Program).Assembly
-    PagesNamespace="StandaloneApp.Pages" />
+    PagesNamespace="StandaloneApp.Pages" bind-Foo="Spicy"/>
+
+@functions {
+    public int Spicy { get; set; }
+}

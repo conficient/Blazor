@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Linq;
 using Microsoft.AspNetCore.Blazor.RenderTree;
 using Microsoft.AspNetCore.Blazor.Test.Helpers;
@@ -279,46 +280,154 @@ namespace Test
         }
 
         [Fact]
-        public void Render_ChildComponent_WithChildContent()
+        public void Render_BindToComponent_WithMatchingProperties()
         {
             // Arrange
             AdditionalSyntaxTrees.Add(CSharpSyntaxTree.ParseText(@"
-using Microsoft.AspNetCore.Blazor;
+using System;
 using Microsoft.AspNetCore.Blazor.Components;
 
 namespace Test
 {
     public class MyComponent : BlazorComponent
     {
-        public string MyAttr { get; set; }
+        public int Value { get; set; }
 
-        public RenderFragment ChildContent { get; set; }
+        public Action<int> ValueChanged { get; set; }
     }
-}
-"));
+}"));
 
             var component = CompileToComponent(@"
 @addTagHelper *, TestAssembly
-<MyComponent MyAttr=""abc"">Some text<some-child a='1'>Nested text</some-child></MyComponent>");
+<MyComponent bind-Value=""ParentValue"" />
+@functions {
+    public int ParentValue { get; set; } = 42;
+}");
 
             // Act
             var frames = GetRenderTree(component);
 
-            // Assert: component frames are correct
+            // Assert
             Assert.Collection(
                 frames,
                 frame => AssertFrame.Component(frame, "Test.MyComponent", 3, 0),
-                frame => AssertFrame.Attribute(frame, "MyAttr", "abc", 1),
-                frame => AssertFrame.Attribute(frame, RenderTreeBuilder.ChildContent, 2));
+                frame => AssertFrame.Attribute(frame, "Value", 42, 1),
+                frame => AssertFrame.Attribute(frame, "ValueChanged", typeof(Action<int>), 2),
+                frame => AssertFrame.Whitespace(frame, 3));
+        }
 
-            // Assert: Captured ChildContent frames are correct
-            var childFrames = GetFrames((RenderFragment)frames[2].AttributeValue);
+        [Fact]
+        public void Render_BindToComponent_WithoutMatchingProperties()
+        {
+            // Arrange
+            AdditionalSyntaxTrees.Add(CSharpSyntaxTree.ParseText(@"
+using System;
+using Microsoft.AspNetCore.Blazor.Components;
+
+namespace Test
+{
+    public class MyComponent : BlazorComponent, IComponent
+    {
+        void IComponent.SetParameters(ParameterCollection parameters)
+        {
+        }
+    }
+}"));
+
+            var component = CompileToComponent(@"
+@addTagHelper *, TestAssembly
+<MyComponent bind-Value=""ParentValue"" />
+@functions {
+    public int ParentValue { get; set; } = 42;
+}");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
             Assert.Collection(
-                childFrames,
-                frame => AssertFrame.Text(frame, "Some text", 3),
-                frame => AssertFrame.Element(frame, "some-child", 3, 4),
-                frame => AssertFrame.Attribute(frame, "a", "1", 5),
-                frame => AssertFrame.Text(frame, "Nested text", 6));
+                frames,
+                frame => AssertFrame.Component(frame, "Test.MyComponent", 3, 0),
+                frame => AssertFrame.Attribute(frame, "Value", 42, 1),
+                frame => AssertFrame.Attribute(frame, "ValueChanged", typeof(UIEventHandler), 2),
+                frame => AssertFrame.Whitespace(frame, 3));
+        }
+
+        [Fact]
+        public void Render_BindToElement_SpecifiesValueAndChangeEvent()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+@addTagHelper *, TestAssembly
+<input type=""text"" bind-value-changed=""@ParentValue"" />
+@functions {
+    public int ParentValue { get; set; } = 42;
+}");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(
+                frames,
+                frame => AssertFrame.Element(frame, "input", 4, 0),
+                frame => AssertFrame.Attribute(frame, "type", "text", 1),
+                frame => AssertFrame.Attribute(frame, "value", "42", 2),
+                frame => AssertFrame.Attribute(frame, "changed", typeof(UIEventHandler), 3),
+                frame => AssertFrame.Whitespace(frame, 4));
+        }
+
+        [Fact] // Additional coverage of OrphanTagHelperLoweringPass
+        public void Render_BindToElement_SpecifiesValueAndChangeEvent_WithCSharpAttribute()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+@addTagHelper *, TestAssembly
+<input type=""@(""text"")"" bind-value-changed=""@ParentValue"" />
+@functions {
+    public int ParentValue { get; set; } = 42;
+}");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(
+                frames,
+                frame => AssertFrame.Element(frame, "input", 4, 0),
+                frame => AssertFrame.Attribute(frame, "type", "text", 1),
+                frame => AssertFrame.Attribute(frame, "value", "42", 2),
+                frame => AssertFrame.Attribute(frame, "changed", typeof(UIEventHandler), 3),
+                frame => AssertFrame.Whitespace(frame, 4));
+        }
+
+        [Fact] // Additional coverage of OrphanTagHelperLoweringPass
+        public void Render_BindToElement_SpecifiesValueAndChangeEvent_BodyContent()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+@addTagHelper *, TestAssembly
+<div bind-value-changed=""@ParentValue"">
+  <span>@(42.ToString())</span>
+</div>
+@functions {
+    public int ParentValue { get; set; } = 42;
+}");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(
+                frames,
+                frame => AssertFrame.Element(frame, "div", 7, 0),
+                frame => AssertFrame.Attribute(frame, "value", "42", 1),
+                frame => AssertFrame.Attribute(frame, "changed", typeof(UIEventHandler), 2),
+                frame => AssertFrame.Whitespace(frame, 3),
+                frame => AssertFrame.Element(frame, "span", 2, 4),
+                frame => AssertFrame.Text(frame, "42", 5),
+                frame => AssertFrame.Whitespace(frame, 6),
+                frame => AssertFrame.Whitespace(frame, 7));
         }
 
         [Fact]
