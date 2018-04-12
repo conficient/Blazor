@@ -15,20 +15,10 @@ namespace Microsoft.AspNetCore.Blazor.Razor
                 throw new ArgumentNullException(nameof(attribute));
             }
 
-            var key = ComponentTagHelperDescriptorProvider.DelegateSignatureMetadata;
-            return attribute.Metadata.TryGetValue(key, out var value);
-        }
-
-        public static string GetDelegateSignature(this BoundAttributeDescriptor attribute)
-        {
-            if (attribute == null)
-            {
-                throw new ArgumentNullException(nameof(attribute));
-            }
-
-            var key = ComponentTagHelperDescriptorProvider.DelegateSignatureMetadata;
-            attribute.Metadata.TryGetValue(key, out var value);
-            return value;
+            var key = BlazorMetadata.Component.DelegateSignatureKey;
+            return 
+                attribute.Metadata.TryGetValue(key, out var value) &&
+                string.Equals(value, bool.TrueString);
         }
     }
 }

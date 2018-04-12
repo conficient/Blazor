@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Linq;
 using Microsoft.AspNetCore.Blazor.RenderTree;
 using Microsoft.AspNetCore.Blazor.Test.Helpers;
@@ -153,8 +154,15 @@ namespace Test
         }
 
 
-        [Fact]
-        public void Render_ChildComponent_WithLambdaEventHandler()
+        [Theory]
+        [InlineData("e => Increment(e)")]
+        [InlineData("(e) => Increment(e)")]
+        [InlineData("@(e => Increment(e))")]
+        [InlineData("@(e => { Increment(e); })")]
+        [InlineData("Increment")]
+        [InlineData("@Increment")]
+        [InlineData("@(Increment)")]
+        public void Render_ChildComponent_WithEventHandler(string expression)
         {
             // Arrange
             AdditionalSyntaxTrees.Add(CSharpSyntaxTree.ParseText(@"
@@ -166,21 +174,22 @@ namespace Test
 {
     public class MyComponent : BlazorComponent
     {
-        public UIEventHandler OnClick { get; set; }
+        public UIMouseEventHandler OnClick { get; set; }
     }
 }
 "));
 
-            var component = CompileToComponent(@"
+            var component = CompileToComponent($@"
 @addTagHelper *, TestAssembly
-<MyComponent OnClick=""Increment()""/>
+@using Microsoft.AspNetCore.Blazor
+<MyComponent OnClick=""{expression}""/>
 
-@functions {
+@functions {{
     private int counter;
-    private void Increment() {
+    private void Increment(UIMouseEventArgs e) {{
         counter++;
-    }
-}");
+    }}
+}}");
 
             // Act
             var frames = GetRenderTree(component);
@@ -194,7 +203,7 @@ namespace Test
                     AssertFrame.Attribute(frame, "OnClick", 1);
 
                     // The handler will have been assigned to a lambda
-                    var handler = Assert.IsType<UIEventHandler>(frame.AttributeValue);
+                    var handler = Assert.IsType<UIMouseEventHandler>(frame.AttributeValue);
                     Assert.Equal("Test.TestComponent", handler.Target.GetType().FullName);
                 },
                 frame => AssertFrame.Whitespace(frame, 2));
@@ -285,13 +294,11 @@ namespace Test
             AdditionalSyntaxTrees.Add(CSharpSyntaxTree.ParseText(@"
 using Microsoft.AspNetCore.Blazor;
 using Microsoft.AspNetCore.Blazor.Components;
-
 namespace Test
 {
     public class MyComponent : BlazorComponent
     {
         public string MyAttr { get; set; }
-
         public RenderFragment ChildContent { get; set; }
     }
 }

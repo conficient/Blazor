@@ -410,7 +410,7 @@ namespace Microsoft.AspNetCore.Blazor.Razor
             // We also limit component attributes to simple cases. However there is still a lot of complexity
             // to handle here, since there are a few different cases for how an attribute might be structured.
             //
-            // This rougly follows the design of the runtime writer for simplicity.
+            // This roughly follows the design of the runtime writer for simplicity.
             if (node.AttributeStructure == AttributeStructure.Minimized)
             {
                 // Do nothing
@@ -425,30 +425,27 @@ namespace Microsoft.AspNetCore.Blazor.Razor
             }
             else if (node.BoundAttribute?.IsDelegateProperty() ?? false)
             {
-                // See the runtime version of this code for a thorough description of what we're doing here
+                // We always surround the expression with the delegate constructor. This makes type
+                // inference inside lambdas, and method group conversion do the right thing.
+                IntermediateToken token = null;
                 if ((cSharpNode = node.Children[0] as CSharpExpressionIntermediateNode) != null)
                 {
-                    // This is an escaped event handler
-                    context.CodeWriter.Write(DesignTimeVariable);
-                    context.CodeWriter.Write(" = ");
-                    context.CodeWriter.Write("new ");
-                    context.CodeWriter.Write(node.BoundAttribute.TypeName);
-                    context.CodeWriter.Write("(");
-                    context.CodeWriter.WriteLine();
-                    WriteCSharpToken(context, ((IntermediateToken)cSharpNode.Children[0]));
-                    context.CodeWriter.Write(");");
-                    context.CodeWriter.WriteLine();
+                    token = cSharpNode.Children[0] as IntermediateToken;
                 }
                 else
                 {
+                    token = node.Children[0] as IntermediateToken;
+                }
+
+                if (token != null)
+                {
                     context.CodeWriter.Write(DesignTimeVariable);
                     context.CodeWriter.Write(" = ");
                     context.CodeWriter.Write("new ");
                     context.CodeWriter.Write(node.BoundAttribute.TypeName);
                     context.CodeWriter.Write("(");
-                    context.CodeWriter.Write(node.BoundAttribute.GetDelegateSignature());
-                    context.CodeWriter.Write(" => ");
-                    WriteCSharpToken(context, ((IntermediateToken)node.Children[0]));
+                    context.CodeWriter.WriteLine();
+                    WriteCSharpToken(context, token);
                     context.CodeWriter.Write(");");
                     context.CodeWriter.WriteLine();
                 }

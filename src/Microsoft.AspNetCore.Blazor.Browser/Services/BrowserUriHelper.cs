@@ -22,20 +22,20 @@ namespace Microsoft.AspNetCore.Blazor.Browser.Services
         static bool _hasEnabledNavigationInterception;
         static string _cachedAbsoluteUri;
         static EventHandler<string> _onLocationChanged;
-        static string _baseUriString;
-        static Uri _baseUri;
+        static string _baseUriStringNoTrailingSlash; // No trailing slash so we can just prepend it to suffixes
+        static Uri _baseUriWithTrailingSlash; // With trailing slash so it can be used in new Uri(base, relative)
 
         /// <inheritdoc />
         public event EventHandler<string> OnLocationChanged
         {
             add
             {
-                EnsureNavigationInteceptionEnabled();
+                EnsureNavigationInterceptionEnabled();
                 _onLocationChanged += value;
             }
             remove
             {
-                // We could consider deactivating the JS-side enableNavigationInteception
+                // We could consider deactivating the JS-side enableNavigationInterception
                 // if there are no remaining listeners, but we don't need that currently.
                 // If we ever do that, will also need to change the logic inside GetAbsoluteUri
                 // so it knows not to continue using the cached URI.
@@ -47,7 +47,7 @@ namespace Microsoft.AspNetCore.Blazor.Browser.Services
         public string GetBaseUriPrefix()
         {
             EnsureBaseUriPopulated();
-            return _baseUriString;
+            return _baseUriStringNoTrailingSlash;
         }
 
         /// <inheritdoc />
@@ -77,7 +77,7 @@ namespace Microsoft.AspNetCore.Blazor.Browser.Services
         public Uri ToAbsoluteUri(string relativeUri)
         {
             EnsureBaseUriPopulated();
-            return new Uri(_baseUri, relativeUri);
+            return new Uri(_baseUriWithTrailingSlash, relativeUri);
         }
 
         /// <inheritdoc />
@@ -118,12 +118,12 @@ namespace Microsoft.AspNetCore.Blazor.Browser.Services
         private static void EnsureBaseUriPopulated()
         {
             // The <base href> is fixed for the lifetime of the page, so just cache it
-            if (_baseUriString == null)
+            if (_baseUriStringNoTrailingSlash == null)
             {
                 var baseUri = RegisteredFunction.InvokeUnmarshalled<string>(
                     $"{_functionPrefix}.getBaseURI");
-                _baseUriString = ToBaseUriPrefix(baseUri);
-                _baseUri = new Uri(_baseUriString);
+                _baseUriStringNoTrailingSlash = ToBaseUriPrefix(baseUri);
+                _baseUriWithTrailingSlash = new Uri(_baseUriStringNoTrailingSlash + "/");
             }
         }
 
@@ -133,16 +133,16 @@ namespace Microsoft.AspNetCore.Blazor.Browser.Services
             _onLocationChanged?.Invoke(null, newAbsoluteUri);
         }
 
-        private static void EnsureNavigationInteceptionEnabled()
+        private static void EnsureNavigationInterceptionEnabled()
         {
             // Don't need thread safety because:
             // (1) there's only one UI thread
-            // (2) doesn't matter if we call enableNavigationInteception more than once anyway
+            // (2) doesn't matter if we call enableNavigationInterception more than once anyway
             if (!_hasEnabledNavigationInterception)
             {
                 _hasEnabledNavigationInterception = true;
                 RegisteredFunction.InvokeUnmarshalled<object>(
-                    $"{_functionPrefix}.enableNavigationInteception");
+                    $"{_functionPrefix}.enableNavigationInterception");
             }
         }
 

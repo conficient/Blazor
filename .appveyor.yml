@@ -5,7 +5,6 @@ install:
 branches:
   only:
   - dev
-  - feature/0.1.0
   - /^release\/.*$/
   - /^(.*\/)?ci-.*$/
 environment:
@@ -19,7 +18,7 @@ build_script:
   - build.cmd /p:SkipTests=true /p:BlazorOutputStatistics=true
 before_test:
   - choco install googlechrome --ignore-checksum
-  - npm install -g selenium-standalone
+  - npm install -g selenium-standalone@latest
   - selenium-standalone install
   - ps: $SeleniumProcess = Start-Process "selenium-standalone" -ArgumentList "start" -PassThru
 test_script:

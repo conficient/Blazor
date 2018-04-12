@@ -24,6 +24,8 @@ namespace Microsoft.AspNetCore.Blazor.Routing
     /// </summary>
     public class NavLink : IComponent, IDisposable
     {
+        private const string DefaultActiveClass = "active";
+
         private RenderHandle _renderHandle;
         private bool _isActive;
 
@@ -31,6 +33,17 @@ namespace Microsoft.AspNetCore.Blazor.Routing
         private string _cssClass;
         private string _hrefAbsolute;
         private IReadOnlyDictionary<string, object> _allAttributes;
+
+        /// <summary>
+        /// Gets or sets the CSS class name applied to the NavLink when the 
+        /// current route matches the NavLink href.
+        /// </summary>
+        public string ActiveClass { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value representing the URL matching behavior.
+        /// </summary>
+        public NavLinkMatch Match { get; set; }
 
         [Inject] private IUriHelper UriHelper { get; set; }
 
@@ -50,11 +63,13 @@ namespace Microsoft.AspNetCore.Blazor.Routing
             parameters.TryGetValue(RenderTreeBuilder.ChildContent, out _childContent);
             parameters.TryGetValue("class", out _cssClass);
             parameters.TryGetValue("href", out string href);
+            ActiveClass = parameters.GetValueOrDefault(nameof(ActiveClass), DefaultActiveClass);
+            Match = parameters.GetValueOrDefault(nameof(Match), NavLinkMatch.Prefix);
             _allAttributes = parameters.ToDictionary();
 
             // Update computed state and render
             _hrefAbsolute = href == null ? null : UriHelper.ToAbsoluteUri(href).AbsoluteUri;
-            _isActive = UriHelper.GetAbsoluteUri().Equals(_hrefAbsolute, StringComparison.Ordinal);
+            _isActive = ShouldMatch(UriHelper.GetAbsoluteUri());
             _renderHandle.Render(Render);
         }
 
@@ -64,11 +79,11 @@ namespace Microsoft.AspNetCore.Blazor.Routing
             UriHelper.OnLocationChanged -= OnLocationChanged;
         }
 
-        private void OnLocationChanged(object sender, string newUri)
+        private void OnLocationChanged(object sender, string newUriAbsolute)
         {
             // We could just re-render always, but for this component we know the
             // only relevant state change is to the _isActive property.
-            var shouldBeActiveNow = newUri.Equals(_hrefAbsolute, StringComparison.Ordinal);
+            var shouldBeActiveNow = ShouldMatch(newUriAbsolute);
             if (shouldBeActiveNow != _isActive)
             {
                 _isActive = shouldBeActiveNow;
@@ -76,15 +91,32 @@ namespace Microsoft.AspNetCore.Blazor.Routing
             }
         }
 
+        private bool ShouldMatch(string currentUriAbsolute)
+        {
+            if (Match == NavLinkMatch.Prefix)
+            {
+                return StartsWithAndHasSeparator(currentUriAbsolute, _hrefAbsolute);
+            }
+            else if (Match == NavLinkMatch.All)
+            {
+                return string.Equals(currentUriAbsolute, _hrefAbsolute, StringComparison.Ordinal);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unsupported {nameof(NavLinkMatch)} value: {Match}");
+            }
+        }
+
         private void Render(RenderTreeBuilder builder)
         {
             builder.OpenElement(0, "a");
 
-            // Set "active" class dynamically
-            builder.AddAttribute(0, "class", CombineWithSpace(_cssClass, _isActive ? "active" : null));
+            // Set class attribute
+            builder.AddAttribute(0, "class",
+                CombineWithSpace(_cssClass, _isActive ? ActiveClass : null));
 
             // Pass through all other attributes unchanged
-            foreach (var kvp in _allAttributes.Where(kvp => kvp.Key != "class"))
+            foreach (var kvp in _allAttributes.Where(kvp => kvp.Key != "class" && kvp.Key != nameof(RenderTreeBuilder.ChildContent)))
             {
                 builder.AddAttribute(0, kvp.Key, kvp.Value);
             }
@@ -98,5 +130,32 @@ namespace Microsoft.AspNetCore.Blazor.Routing
         private string CombineWithSpace(string str1, string str2)
             => str1 == null ? str2
             : (str2 == null ? str1 : $"{str1} {str2}");
+
+        private static bool StartsWithAndHasSeparator(string value, string prefix)
+        {
+            var valueLength = value.Length;
+            var prefixLength = prefix.Length;
+            if (prefixLength == valueLength)
+            {
+                return string.Equals(value, prefix, StringComparison.Ordinal);
+            }
+            else if (valueLength > prefixLength)
+            {
+                return value.StartsWith(prefix, StringComparison.Ordinal)
+                    && (
+                        // Only match when there's a separator character either at the end of the
+                        // prefix or right after it.
+                        // Example: "/abc" is treated as a prefix of "/abc/def" but not "/abcdef"
+                        // Example: "/abc/" is treated as a prefix of "/abc/def" but not "/abcdef"
+                        prefixLength == 0
+                        || !char.IsLetterOrDigit(prefix[prefixLength - 1])
+                        || !char.IsLetterOrDigit(value[prefixLength])
+                    );
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 }

@@ -7,13 +7,17 @@ using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure.ServerFixtures;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
 {
     public class BindTest : BasicTestAppTestBase
     {
-        public BindTest(BrowserFixture browserFixture, DevHostServerFixture<Program> serverFixture)
-            : base(browserFixture, serverFixture)
+        public BindTest(
+            BrowserFixture browserFixture, 
+            DevHostServerFixture<Program> serverFixture,
+            ITestOutputHelper output)
+            : base(browserFixture, serverFixture, output)
         {
             Navigate(ServerPathBase, noReload: true);
             MountTestComponent<BindCasesComponent>();
@@ -39,6 +43,35 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         {
             var target = Browser.FindElement(By.Id("textbox-initially-populated"));
             var boundValue = Browser.FindElement(By.Id("textbox-initially-populated-value"));
+            Assert.Equal("Hello", target.GetAttribute("value"));
+            Assert.Equal("Hello", boundValue.Text);
+
+            // Modify target; verify value is updated
+            target.Clear();
+            target.SendKeys("Changed value\t");
+            Assert.Equal("Changed value", boundValue.Text);
+        }
+        
+        [Fact]
+        public void CanBindTextArea_InitiallyBlank()
+        {
+            var target = Browser.FindElement(By.Id("textarea-initially-blank"));
+            var boundValue = Browser.FindElement(By.Id("textarea-initially-blank-value"));
+            Assert.Equal(string.Empty, target.GetAttribute("value"));
+            Assert.Equal(string.Empty, boundValue.Text);
+
+            // Modify target; verify value is updated
+            target.SendKeys("Changed value");
+            Assert.Equal(string.Empty, boundValue.Text); // Don't update as there's no change event fired yet.
+            target.SendKeys("\t");
+            Assert.Equal("Changed value", boundValue.Text);
+        }
+
+        [Fact]
+        public void CanBindTextArea_InitiallyPopulated()
+        {
+            var target = Browser.FindElement(By.Id("textarea-initially-populated"));
+            var boundValue = Browser.FindElement(By.Id("textarea-initially-populated-value"));
             Assert.Equal("Hello", target.GetAttribute("value"));
             Assert.Equal("Hello", boundValue.Text);
 

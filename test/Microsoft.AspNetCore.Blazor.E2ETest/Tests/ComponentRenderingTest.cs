@@ -12,13 +12,17 @@ using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure;
 using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure.ServerFixtures;
 using OpenQA.Selenium;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
 {
     public class ComponentRenderingTest : BasicTestAppTestBase
     {
-        public ComponentRenderingTest(BrowserFixture browserFixture, DevHostServerFixture<Program> serverFixture)
-            : base(browserFixture, serverFixture)
+        public ComponentRenderingTest(
+            BrowserFixture browserFixture,
+            DevHostServerFixture<Program> serverFixture,
+            ITestOutputHelper output)
+            : base(browserFixture, serverFixture, output)
         {
             Navigate(ServerPathBase, noReload: true);
         }
@@ -79,6 +83,30 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
             Assert.Collection(liElements(),
                 li => Assert.Equal("a", li.Text),
                 li => Assert.Equal("b", li.Text));
+        }
+
+        [Fact]
+        public void CanAddAndRemoveEventHandlersDynamically()
+        {
+            var appElement = MountTestComponent<CounterComponent>();
+            var countDisplayElement = appElement.FindElement(By.TagName("p"));
+            var incrementButton = appElement.FindElement(By.TagName("button"));
+            var toggleClickHandlerCheckbox = appElement.FindElement(By.CssSelector("[type=checkbox]"));
+
+            // Initial count is zero; clicking button increments count
+            Assert.Equal("Current count: 0", countDisplayElement.Text);
+            incrementButton.Click();
+            Assert.Equal("Current count: 1", countDisplayElement.Text);
+
+            // We can remove an event handler
+            toggleClickHandlerCheckbox.Click();
+            incrementButton.Click();
+            Assert.Equal("Current count: 1", countDisplayElement.Text);
+
+            // We can add an event handler
+            toggleClickHandlerCheckbox.Click();
+            incrementButton.Click();
+            Assert.Equal("Current count: 2", countDisplayElement.Text);
         }
 
         [Fact]
@@ -227,6 +255,30 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
             Assert.Equal("Click me", externalComponentButton.Text);
             externalComponentButton.Click();
             Assert.Equal("It works", externalComponentButton.Text);
+        }
+
+        [Fact]
+        public void CanRenderSvgWithCorrectNamespace()
+        {
+            var appElement = MountTestComponent<SvgComponent>();
+
+            var svgElement = appElement.FindElement(By.XPath("//*[local-name()='svg' and namespace-uri()='http://www.w3.org/2000/svg']"));
+            Assert.NotNull(svgElement);
+
+            var svgCircleElement = appElement.FindElement(By.XPath("//*[local-name()='circle' and namespace-uri()='http://www.w3.org/2000/svg']"));
+            Assert.NotNull(svgCircleElement);
+        }
+
+        [Fact]
+        public void CanRenderSvgChildComponentWithCorrectNamespace()
+        {
+            var appElement = MountTestComponent<SvgWithChildComponent>();
+
+            var svgElement = appElement.FindElement(By.XPath("//*[local-name()='svg' and namespace-uri()='http://www.w3.org/2000/svg']"));
+            Assert.NotNull(svgElement);
+
+            var svgCircleElement = appElement.FindElement(By.XPath("//*[local-name()='circle' and namespace-uri()='http://www.w3.org/2000/svg']"));
+            Assert.NotNull(svgCircleElement);
         }
     }
 }

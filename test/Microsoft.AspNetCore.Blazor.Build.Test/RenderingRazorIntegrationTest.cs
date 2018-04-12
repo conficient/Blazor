@@ -180,6 +180,109 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
                 frame => AssertFrame.Attribute(frame, "attr", "Hello, WORLD    with number 246!", 1));
         }
 
+        // This test exercises the case where two IntermediateTokens are part of the same expression.
+        // In these case they are split by a comment.
+        [Fact]
+        public void SupportsAttributesWithInterpolatedStringExpressionValues_SplitByComment()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                "@{ var myValue = \"world\"; var myNum=123; }"
+                + "<elem attr=\"Hello, @myValue.ToUpperInvariant()    with number @(myN@* Blazor is Blawesome! *@um*2)!\" />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "attr", "Hello, WORLD    with number 246!", 1));
+        }
+
+        [Fact]
+        public void SupportsAttributesWithInterpolatedTernaryExpressionValues()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                "@{ var myValue = \"world\"; }"
+                + "<elem attr=\"Hello, @(true ? myValue : \"nothing\")!\" />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "attr", "Hello, world!", 1));
+        }
+
+        [Fact]
+        public void SupportsHyphenedAttributesWithCSharpExpressionValues()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                "@{ var myValue = \"My string\"; }"
+                + "<elem abc-def=@myValue />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "abc-def", "My string", 1));
+        }
+
+        [Fact]
+        public void SupportsDataDashAttributesWithLiteralValues()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                "<elem data-abc=\"Hello\" />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "data-abc", "Hello", 1));
+        }
+
+        [Fact(Skip = "Currently broken due to #219. TODO: Once the issue is fixed, re-enable this test, remove the test below, and remove the implementation of its workaround.")]
+        public void SupportsDataDashAttributesWithCSharpExpressionValues()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                "@{ var myValue = \"My string\"; }"
+                + "<elem data-abc=@myValue />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "data-abc", "My string", 1));
+        }
+
+        [Fact]
+        public void TemporaryWorkaround_ConvertsDataUnderscoreAttributesToDataDash()
+        {
+            // This is a temporary workaround for https://github.com/aspnet/Blazor/issues/219
+            //
+            // Currently Razor's HtmlMarkupParser looks for data-* attributes and handles
+            // them differently: https://github.com/aspnet/Razor/blob/dev/src/Microsoft.AspNetCore.Razor.Language/Legacy/HtmlMarkupParser.cs#L934
+            // This is because Razor was historically used only on the server, and there's
+            // an argument that data-* shouldn't support conditional server-side rendering
+            // because of its HTML semantics. The result is that information about data-*
+            // attributes isn't retained in the IR - all we get there is literal HTML
+            // markup, which the Blazor code writer can't do anything useful with.
+            //
+            // The real solution would be to disable the parser's "data-*" special case
+            // for Blazor. We don't yet have a mechanism for disabling it, so as a short
+            // term workaround, we support data_* as an alternative syntax that renders
+            // as data-* in the DOM.
+            //
+            // This workaround (the automatic conversion of data_* to data-*) will be removed
+            // as soon as the underlying HTML parsing issue is resolved.
+
+            // Arrange/Act
+            var component = CompileToComponent(
+                "@{ var myValue = \"My string\"; }"
+                + "<elem data_abc=@myValue />");
+
+            // Assert
+            Assert.Collection(GetRenderTree(component),
+                frame => AssertFrame.Element(frame, "elem", 2, 0),
+                frame => AssertFrame.Attribute(frame, "data-abc", "My string", 1));
+        }
+
         [Fact]
         public void SupportsAttributesWithEventHandlerValues()
         {
@@ -213,34 +316,6 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
         }
 
         [Fact]
-        public void SupportsAttributesWithCSharpCodeBlockValues()
-        {
-            // Arrange/Act
-            var component = CompileToComponent(
-                @"<elem attr=@{ DidInvokeCode = true; } />
-                @functions {
-                    public bool DidInvokeCode { get; set; } = false;
-                }");
-            var didInvokeCodeProperty = component.GetType().GetProperty("DidInvokeCode");
-            var frames = GetRenderTree(component);
-
-            // Assert
-            Assert.False((bool)didInvokeCodeProperty.GetValue(component));
-            Assert.Collection(frames,
-                frame => AssertFrame.Element(frame, "elem", 2, 0),
-                frame =>
-                {
-                    Assert.Equal(RenderTreeFrameType.Attribute, frame.FrameType);
-                    Assert.NotNull(frame.AttributeValue);
-                    Assert.Equal(1, frame.Sequence);
-
-                    ((UIEventHandler)frame.AttributeValue)(null);
-                    Assert.True((bool)didInvokeCodeProperty.GetValue(component));
-                },
-                frame => AssertFrame.Whitespace(frame, 2));
-        }
-
-        [Fact]
         public void SupportsUsingStatements()
         {
             // Arrange/Act
@@ -256,42 +331,11 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
         }
 
         [Fact]
-        public void SupportsAttributeFramesEvaluatedInline()
-        {
-            // Arrange/Act
-            var component = CompileToComponent(
-                @"<elem @onclick(MyHandler) />
-                @functions {
-                    public bool DidInvokeCode { get; set; } = false;
-                    void MyHandler()
-                    {
-                        DidInvokeCode = true;
-                    }
-                }");
-            var didInvokeCodeProperty = component.GetType().GetProperty("DidInvokeCode");
-
-            // Assert
-            Assert.False((bool)didInvokeCodeProperty.GetValue(component));
-            Assert.Collection(GetRenderTree(component),
-                frame => AssertFrame.Element(frame, "elem", 2, 0),
-                frame =>
-                {
-                    Assert.Equal(RenderTreeFrameType.Attribute, frame.FrameType);
-                    Assert.NotNull(frame.AttributeValue);
-                    Assert.Equal(1, frame.Sequence);
-
-                    ((UIEventHandler)frame.AttributeValue)(null);
-                    Assert.True((bool)didInvokeCodeProperty.GetValue(component));
-                },
-                frame => AssertFrame.Whitespace(frame, 2));
-        }
-
-        [Fact]
         public void SupportsTwoWayBindingForTextboxes()
         {
             // Arrange/Act
             var component = CompileToComponent(
-                @"<input @bind(MyValue) />
+                @"<input bind=""MyValue"" />
                 @functions {
                     public string MyValue { get; set; } = ""Initial value"";
                 }");
@@ -317,11 +361,41 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
         }
 
         [Fact]
+        public void SupportsTwoWayBindingForTextareas()
+        {
+            // Arrange/Act
+            var component = CompileToComponent(
+                @"<textarea bind=""MyValue"" ></textarea>
+                @functions {
+                    public string MyValue { get; set; } = ""Initial value"";
+                }");
+            var myValueProperty = component.GetType().GetProperty("MyValue");
+
+            // Assert
+            var frames = GetRenderTree(component);
+            Assert.Collection(frames,
+                frame => AssertFrame.Element(frame, "textarea", 3, 0),
+                frame => AssertFrame.Attribute(frame, "value", "Initial value", 1),
+                frame =>
+                {
+                    AssertFrame.Attribute(frame, "onchange", 2);
+
+                    // Trigger the change event to show it updates the property
+                    ((UIEventHandler)frame.AttributeValue)(new UIChangeEventArgs
+                    {
+                        Value = "Modified value"
+                    });
+                    Assert.Equal("Modified value", myValueProperty.GetValue(component));
+                },
+                frame => AssertFrame.Text(frame, "\n", 3));
+        }
+
+        [Fact]
         public void SupportsTwoWayBindingForDateValues()
         {
             // Arrange/Act
             var component = CompileToComponent(
-                @"<input @bind(MyDate) />
+                @"<input bind=""MyDate"" />
                 @functions {
                     public DateTime MyDate { get; set; } = new DateTime(2018, 3, 4, 1, 2, 3);
                 }");
@@ -353,10 +427,10 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
             // Arrange/Act
             var testDateFormat = "ddd yyyy-MM-dd";
             var component = CompileToComponent(
-                @"<input @bind(MyDate, """ + testDateFormat + @""") />
-                @functions {
-                    public DateTime MyDate { get; set; } = new DateTime(2018, 3, 4);
-                }");
+                $@"<input bind=""@MyDate"" format-value=""{testDateFormat}"" />
+                @functions {{
+                    public DateTime MyDate {{ get; set; }} = new DateTime(2018, 3, 4);
+                }}");
             var myDateProperty = component.GetType().GetProperty("MyDate");
 
             // Assert
@@ -378,12 +452,92 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
                 frame => AssertFrame.Text(frame, "\n", 3));
         }
 
+        [Fact] // In this case, onclick is just a normal HTML attribute
+        public void SupportsEventHandlerWithString()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+<button onclick=""function(){console.log('hello');};"" />");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(frames,
+                frame => AssertFrame.Element(frame, "button", 2, 0),
+                frame => AssertFrame.Attribute(frame, "onclick", "function(){console.log('hello');};", 1));
+        }
+
+        [Fact]
+        public void SupportsEventHandlerWithLambda()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+<button onclick=""@(x => Clicked = true)"" />
+@functions {
+    public bool Clicked { get; set; }
+}");
+
+            var clicked = component.GetType().GetProperty("Clicked");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(frames,
+                frame => AssertFrame.Element(frame, "button", 2, 0),
+                frame =>
+                {
+                    AssertFrame.Attribute(frame, "onclick", 1);
+
+                    var func = Assert.IsType<Action<UIMouseEventArgs>>(frame.AttributeValue);
+                    Assert.False((bool)clicked.GetValue(component));
+
+                    func(new UIMouseEventArgs());
+                    Assert.True((bool)clicked.GetValue(component));
+                },
+                frame => AssertFrame.Whitespace(frame, 2));
+        }
+
+        [Fact]
+        public void SupportsEventHandlerWithMethodGroup()
+        {
+            // Arrange
+            var component = CompileToComponent(@"
+@using Microsoft.AspNetCore.Blazor
+<button onclick=""@OnClick"" />
+@functions {
+    public void OnClick(UIMouseEventArgs e) { Clicked = true; }
+    public bool Clicked { get; set; }
+}");
+
+            var clicked = component.GetType().GetProperty("Clicked");
+
+            // Act
+            var frames = GetRenderTree(component);
+
+            // Assert
+            Assert.Collection(frames,
+                frame => AssertFrame.Element(frame, "button", 2, 0),
+                frame =>
+                {
+                    AssertFrame.Attribute(frame, "onclick", 1);
+
+                    var func = Assert.IsType<Action<UIMouseEventArgs>>(frame.AttributeValue);
+                    Assert.False((bool)clicked.GetValue(component));
+
+                    func(new UIMouseEventArgs());
+                    Assert.True((bool)clicked.GetValue(component));
+                },
+                frame => AssertFrame.Whitespace(frame, 2));
+        }
+
         [Fact]
         public void SupportsTwoWayBindingForBoolValues()
         {
             // Arrange/Act
             var component = CompileToComponent(
-                @"<input @bind(MyValue) />
+                @"<input bind=""MyValue"" />
                 @functions {
                     public bool MyValue { get; set; } = true;
                 }");
@@ -393,7 +547,7 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
             var frames = GetRenderTree(component);
             Assert.Collection(frames,
                 frame => AssertFrame.Element(frame, "input", 3, 0),
-                frame => AssertFrame.Attribute(frame, "value", "True", 1),
+                frame => AssertFrame.Attribute(frame, "value", true, 1),
                 frame =>
                 {
                     AssertFrame.Attribute(frame, "onchange", 2);
@@ -414,7 +568,7 @@ namespace Microsoft.AspNetCore.Blazor.Build.Test
             // Arrange/Act
             var myEnumType = FullTypeName<MyEnum>();
             var component = CompileToComponent(
-                $@"<input @bind(MyValue) />
+                $@"<input bind=""MyValue"" />
                 @functions {{
                     public {myEnumType} MyValue {{ get; set; }} = {myEnumType}.{nameof(MyEnum.FirstValue)};
                 }}");
