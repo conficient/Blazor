@@ -23,9 +23,18 @@ namespace Microsoft.AspNetCore.Blazor.Razor
 
         public TagHelperDescriptor Component { get; set; }
 
+        /// <summary>
+        /// Gets the child content parameter name (null if unset) that was applied at the component level.
+        /// </summary>
+        public string ChildContentParameterName { get; set; }
+
         public IEnumerable<ComponentTypeArgumentExtensionNode> TypeArguments => Children.OfType<ComponentTypeArgumentExtensionNode>();
 
         public string TagName { get; set; }
+        
+        // An optional type inference node. This will be populated (and point to a different part of the tree)
+        // if this component call site requires type inference.
+        public ComponentTypeInferenceMethodIntermediateNode TypeInferenceNode { get; set; }
         
         public string TypeName { get; set; }
 

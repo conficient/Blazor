@@ -61,6 +61,16 @@ namespace Microsoft.AspNetCore.Blazor.Razor
             return RazorDiagnostic.Create(MismatchedClosingTag, span ?? SourceSpan.Undefined, expectedTagName, tagName);
         }
 
+        public static readonly RazorDiagnosticDescriptor UnexpectedClosingTagForVoidElement = new RazorDiagnosticDescriptor(
+            "BL9983",
+            () => "Unexpected closing tag '{0}'. The element '{0}' is a void element, and should be used without a closing tag.",
+            RazorDiagnosticSeverity.Error);
+
+        public static RazorDiagnostic Create_UnexpectedClosingTagForVoidElement(SourceSpan? span, string tagName)
+        {
+            return RazorDiagnostic.Create(UnexpectedClosingTagForVoidElement, span ?? SourceSpan.Undefined, tagName);
+        }
+
         public static readonly RazorDiagnosticDescriptor InvalidHtmlContent = new RazorDiagnosticDescriptor(
             "BL9984",
             () => "Found invalid HTML content. Text '{0}'",
@@ -280,6 +290,34 @@ namespace Microsoft.AspNetCore.Blazor.Razor
             var attributesText = string.Join(", ", attributes.Select(a => $"'{a.Name}'"));
             return RazorDiagnostic.Create(GenericComponentMissingTypeArgument, source ?? SourceSpan.Undefined, component.TagName, attributesText);
         }
-    }
 
+        public static readonly RazorDiagnosticDescriptor GenericComponentTypeInferenceUnderspecified =
+            new RazorDiagnosticDescriptor(
+                "BL10001",
+                () => "The type of component '{0}' cannot be inferred based on the values provided. Consider specifying the type arguments " +
+                    "directly using the following attributes: {1}.",
+                RazorDiagnosticSeverity.Error);
+
+        public static RazorDiagnostic Create_GenericComponentTypeInferenceUnderspecified(
+            SourceSpan? source,
+            ComponentExtensionNode component,
+            IEnumerable<BoundAttributeDescriptor> attributes)
+        {
+            Debug.Assert(component.Component.IsGenericTypedComponent());
+
+            var attributesText = string.Join(", ", attributes.Select(a => $"'{a.Name}'"));
+            return RazorDiagnostic.Create(GenericComponentTypeInferenceUnderspecified, source ?? SourceSpan.Undefined, component.TagName, attributesText);
+        }
+
+        public static readonly RazorDiagnosticDescriptor ChildContentHasInvalidParameterOnComponent =
+            new RazorDiagnosticDescriptor(
+                "BL10002",
+                () => "Invalid parameter name. The parameter name attribute '{0}' on component '{1}' can only include literal text.",
+                RazorDiagnosticSeverity.Error);
+
+        public static RazorDiagnostic Create_ChildContentHasInvalidParameterOnComponent(SourceSpan? source, string attribute, string element)
+        {
+            return RazorDiagnostic.Create(ChildContentHasInvalidParameterOnComponent, source ?? SourceSpan.Undefined, attribute, element);
+        }
+    }
 }

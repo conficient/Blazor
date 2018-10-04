@@ -21,27 +21,15 @@
       "path": "BlazorHosted-CSharp.sln"
     },
     {
-      "condition": "(OS == \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
-      "path": "BlazorHosted-CSharp.Server\\BlazorHosted-CSharp.Server.csproj"
-    },
-    {
-      "condition": "(OS != \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
+      "condition": "(HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
       "path": "BlazorHosted-CSharp.Server/BlazorHosted-CSharp.Server.csproj"
     },
     {
-      "condition": "(OS == \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
-      "path": "BlazorHosted-CSharp.Client\\BlazorHosted-CSharp.Client.csproj"
-    },
-    {
-      "condition": "(OS != \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
+      "condition": "(HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
       "path": "BlazorHosted-CSharp.Client/BlazorHosted-CSharp.Client.csproj"
     },
     {
-      "condition": "(OS == \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
-      "path": "BlazorHosted-CSharp.Shared\\BlazorHosted-CSharp.Shared.csproj"
-    },
-    {
-      "condition": "(OS != \"Windows_NT\" && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
+      "condition": "(HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
       "path": "BlazorHosted-CSharp.Shared/BlazorHosted-CSharp.Shared.csproj"
     }
   ],
@@ -95,12 +83,12 @@
       "replaces": "$(TemplateBlazorPackageVersion)",
       "defaultValue": "${TemplateBlazorVersion}"
     },
-    "AspNetCorePackageVersionSymbol": {
+    "TemplateRazorDesignPackageVersionSymbol": {
       "type": "parameter",
       "datatype": "string",
-      "description": "Intended for internal use only.",
-      "replaces": " Version=\"$(AspNetCorePackageVersion)\"",
-      "defaultValue": ""
+      "description": "Specifies which version of the Razor.Design package to use.",
+      "replaces": "$(TemplateRazorDesignPackageVersion)",
+      "defaultValue": "${TemplateRazorDesignPackageVersion}"
     },
     "skipRestore": {
       "type": "parameter",
